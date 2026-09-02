@@ -1,0 +1,2510 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, orientation=landscape">
+    <meta name="theme-color" content="#000000">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>DEEP DARK - Survival Mining Game</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #0a0a0a;
+            color: #ddd;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            image-orientation: from-image;
+        }
+
+        /* Force landscape - prevent portrait */
+        @media (orientation: portrait) {
+            body::before {
+                content: "Please rotate your device to landscape";
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: #000;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 28px;
+                color: #ffaa00;
+                text-align: center;
+                z-index: 9999;
+            }
+
+            #gameContainer {
+                display: none;
+            }
+        }
+
+        #gameContainer {
+            width: 100%;
+            height: 100%;
+            position: relative;
+            background: #000;
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+            background: #000;
+        }
+
+        .hud {
+            position: absolute;
+            top: 5px;
+            left: 5px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 8px 12px;
+            border: 2px solid #ff8800;
+            border-radius: 5px;
+            font-size: 11px;
+            line-height: 1.4;
+            min-width: 110px;
+        }
+
+        .hud-title {
+            font-weight: bold;
+            color: #ffaa00;
+            margin-bottom: 3px;
+            font-size: 12px;
+        }
+
+        .torch-bar {
+            width: 100px;
+            height: 8px;
+            background: #222;
+            border: 1px solid #ff6600;
+            position: relative;
+            margin: 3px 0;
+            border-radius: 3px;
+        }
+
+        .torch-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ffff00, #ff8800);
+            width: 100%;
+            border-radius: 2px;
+            transition: width 0.1s;
+        }
+
+        .torch-fill.warning {
+            background: linear-gradient(90deg, #ff4400, #ff0000);
+            animation: flicker 0.1s infinite;
+        }
+
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        .health-bar {
+            width: 100px;
+            height: 8px;
+            background: #222;
+            border: 1px solid #ff0000;
+            position: relative;
+            margin: 3px 0;
+            border-radius: 3px;
+        }
+
+        .health-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ff00, #00aa00);
+            width: 100%;
+            border-radius: 2px;
+            transition: width 0.1s;
+        }
+
+        .health-fill.low {
+            background: linear-gradient(90deg, #ff4400, #ff0000);
+        }
+
+        .materials-hud {
+            position: absolute;
+            top: 5px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 6px 16px;
+            border: 2px solid #ff8800;
+            border-radius: 20px;
+            font-size: 13px;
+            font-weight: bold;
+            color: #ffaa00;
+            z-index: 100;
+            white-space: nowrap;
+        }
+
+        .minimap {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 150px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 2px solid #ff8800;
+            border-radius: 5px;
+            z-index: 100;
+            /* BUGFIX: this was "display: none" with nothing anywhere ever turning
+               it back on, so the minimap never actually appeared even though its
+               "🗺️ MAP" label did. */
+            display: block;
+        }
+
+        .minimap-title {
+            /* BUGFIX: this was positioned relative to the whole game container
+               (top:3px; left:5px), so it floated over the HUD in the top-left
+               corner instead of labeling the minimap in the top-right corner. */
+            position: absolute;
+            top: 14px;
+            right: 18px;
+            font-size: 10px;
+            color: #ffaa00;
+            font-weight: bold;
+            z-index: 101;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        .button-group {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            display: flex;
+            gap: 10px;
+            z-index: 100;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: #ff8800;
+            color: #000;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        button:hover {
+            background: #ffaa00;
+            transform: scale(1.05);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
+
+        .menu {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .menu.hidden {
+            display: none;
+        }
+
+        .menu-content {
+            text-align: center;
+            background: rgba(20, 10, 0, 0.9);
+            padding: 40px;
+            border: 3px solid #ff8800;
+            border-radius: 10px;
+            min-width: 300px;
+        }
+
+        .menu-title {
+            font-size: 48px;
+            font-weight: bold;
+            color: #ffaa00;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px #000;
+        }
+
+        .menu-subtitle {
+            font-size: 16px;
+            color: #ff8800;
+            margin-bottom: 30px;
+        }
+
+        .menu-buttons {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 20px 0;
+        }
+
+        .menu-buttons button {
+            width: 100%;
+            padding: 15px;
+            font-size: 18px;
+        }
+
+        .stats {
+            text-align: left;
+            margin: 20px 0;
+            font-size: 14px;
+            color: #ccc;
+        }
+
+        .stats-item {
+            margin: 5px 0;
+        }
+
+        .fullscreen-btn {
+            position: absolute;
+            top: 5px;
+            right: 165px;
+            width: 34px;
+            height: 34px;
+            z-index: 100;
+            padding: 0;
+            font-size: 15px;
+            min-width: 34px;
+            min-height: 34px;
+        }
+
+        .mobile-controls {
+            position: absolute;
+            bottom: 15px;
+            left: 15px;
+            display: none;
+            z-index: 100;
+        }
+
+        /* BUGFIX/CHANGE: the mine button used to be crammed in next to the
+           joystick on the left. Moved to its own cluster on the right side of
+           the screen, matching standard mobile-game layout (move left, act
+           right) and the user's request. */
+        .mobile-actions {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+            display: none;
+            z-index: 100;
+            gap: 12px;
+            flex-direction: row;
+            align-items: flex-end;
+        }
+
+        .joystick-container {
+            width: 120px;
+            height: 120px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 3px solid #ff8800;
+            border-radius: 50%;
+            position: relative;
+            touch-action: none;
+            box-shadow: 0 0 15px rgba(255, 136, 0, 0.4);
+        }
+
+        .joystick-thumb {
+            width: 50px;
+            height: 50px;
+            background: #ff8800;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(255, 136, 0, 0.8);
+            transition: transform 0.05s;
+        }
+
+        .mobile-button {
+            width: 65px;
+            height: 65px;
+            padding: 0;
+            font-size: 22px;
+            min-width: 65px;
+            min-height: 65px;
+            box-shadow: 0 0 10px rgba(255, 136, 0, 0.5);
+        }
+
+        .mobile-button-primary {
+            width: 85px;
+            height: 85px;
+            font-size: 30px;
+            min-width: 85px;
+            min-height: 85px;
+            border-radius: 50%;
+        }
+
+        .mobile-button:active {
+            box-shadow: 0 0 15px rgba(255, 136, 0, 0.8);
+        }
+
+        @media (max-width: 1024px) {
+            .mobile-controls {
+                display: flex;
+            }
+
+            .mobile-actions {
+                display: flex;
+            }
+
+            .hud {
+                font-size: 12px;
+                padding: 10px;
+                min-width: 160px;
+            }
+
+            .minimap {
+                width: 100px;
+                height: 100px;
+                top: 60px;
+                right: 10px;
+            }
+
+            .materials-hud {
+                font-size: 11px;
+                padding: 5px 12px;
+            }
+        }
+
+        /* Landscape orientation optimization */
+        @media (orientation: landscape) and (max-height: 600px) {
+            .hud {
+                font-size: 10px;
+                padding: 6px 10px;
+                top: 3px;
+                left: 3px;
+                min-width: 95px;
+            }
+
+            .torch-bar {
+                width: 85px;
+                height: 7px;
+            }
+
+            .health-bar {
+                width: 85px;
+                height: 7px;
+            }
+
+            .materials-hud {
+                top: 3px;
+                font-size: 10px;
+                padding: 4px 10px;
+            }
+
+            .minimap {
+                display: none;
+            }
+
+            .mobile-controls {
+                bottom: 10px;
+                left: 10px;
+            }
+
+            .mobile-actions {
+                bottom: 10px;
+                right: 10px;
+                gap: 10px;
+            }
+
+            .joystick-container {
+                width: 110px;
+                height: 110px;
+            }
+
+            .joystick-thumb {
+                width: 45px;
+                height: 45px;
+            }
+
+            .mobile-button {
+                width: 58px;
+                height: 58px;
+                min-width: 58px;
+                min-height: 58px;
+                font-size: 20px;
+            }
+
+            .mobile-button-primary {
+                width: 72px;
+                height: 72px;
+                min-width: 72px;
+                min-height: 72px;
+                font-size: 26px;
+            }
+
+            .fullscreen-btn {
+                width: 30px;
+                height: 30px;
+                min-width: 30px;
+                min-height: 30px;
+                font-size: 13px;
+                top: 3px;
+                right: 105px;
+            }
+
+            .menu-content {
+                min-width: 350px;
+                padding: 25px;
+            }
+
+            .menu-title {
+                font-size: 36px;
+            }
+        }
+
+        /* Extra small landscape (iPhone SE, older phones) */
+        @media (orientation: landscape) and (max-height: 500px) {
+            .hud {
+                font-size: 9px;
+                padding: 5px 8px;
+                min-width: 85px;
+            }
+
+            .torch-bar, .health-bar {
+                width: 75px;
+                height: 6px;
+            }
+
+            .materials-hud {
+                font-size: 9px;
+                padding: 3px 8px;
+            }
+
+            .minimap {
+                display: none;
+            }
+
+            .joystick-container {
+                width: 90px;
+                height: 90px;
+            }
+
+            .joystick-thumb {
+                width: 35px;
+                height: 35px;
+            }
+
+            .mobile-button {
+                width: 50px;
+                height: 50px;
+                min-width: 50px;
+                min-height: 50px;
+                font-size: 16px;
+            }
+
+            .mobile-button-primary {
+                width: 62px;
+                height: 62px;
+                min-width: 62px;
+                min-height: 62px;
+                font-size: 22px;
+            }
+
+            .mobile-actions {
+                bottom: 8px;
+                right: 8px;
+                gap: 8px;
+            }
+
+            .fullscreen-btn {
+                width: 26px;
+                height: 26px;
+                min-width: 26px;
+                min-height: 26px;
+                font-size: 12px;
+                top: 3px;
+                right: 95px;
+            }
+        }
+
+        .screen-shake {
+            animation: shake 0.3s;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translate(0, 0); }
+            25% { transform: translate(-5px, -5px); }
+            50% { transform: translate(5px, 5px); }
+            75% { transform: translate(-5px, 5px); }
+        }
+
+        .upgrade-item {
+            background: rgba(50, 30, 0, 0.8);
+            padding: 15px;
+            margin: 10px 0;
+            border: 1px solid #ff8800;
+            border-radius: 5px;
+            text-align: left;
+        }
+
+        .upgrade-item-name {
+            font-weight: bold;
+            color: #ffaa00;
+            font-size: 16px;
+        }
+
+        .upgrade-item-desc {
+            font-size: 12px;
+            color: #aaa;
+            margin: 5px 0;
+        }
+
+        .upgrade-item-cost {
+            color: #ff8800;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .credit-tag {
+            position: absolute;
+            bottom: 3px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 9px;
+            color: rgba(255, 170, 0, 0.45);
+            z-index: 100;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- HUD -->
+        <div class="hud">
+            <div class="hud-title">⚡ TORCH</div>
+            <div class="torch-bar">
+                <div class="torch-fill" id="torchFill"></div>
+            </div>
+            <div id="torchText">100%</div>
+
+            <div class="hud-title" style="margin-top: 12px;">❤️ HEALTH</div>
+            <div class="health-bar">
+                <div class="health-fill" id="healthFill"></div>
+            </div>
+            <div id="healthText">100/100</div>
+
+            <div style="margin-top: 12px; font-size: 12px;">
+                <div id="levelText">Level: 1</div>
+                <div id="timeText">Time: 0s</div>
+            </div>
+
+            <button onclick="game.togglePause()" style="width: 100%; margin-top: 10px; font-size: 12px; padding: 8px;">
+                ⏸ PAUSE
+            </button>
+            <button id="rechargeBtn" onclick="game.rechargeTorch()" style="width: 100%; margin-top: 6px; font-size: 12px; padding: 8px;">
+                🔥 RECHARGE
+            </button>
+        </div>
+
+        <!-- Materials counter (compact, top-center) -->
+        <div class="materials-hud" id="materialsHud">🎒 Materials: 0</div>
+
+        <!-- Fullscreen Button -->
+        <button class="fullscreen-btn" id="fullscreenBtn" onclick="game.toggleFullscreen()">
+            ⛶
+        </button>
+
+        <!-- Minimap -->
+        <canvas id="minimap" class="minimap"></canvas>
+        <div class="minimap-title">🗺️ MAP</div>
+
+        <!-- Credit -->
+        <div class="credit-tag">Made by Ravi</div>
+
+        <!-- Mobile Controls: joystick on the left -->
+        <div class="mobile-controls" id="mobileControls">
+            <div class="joystick-container" id="joystick">
+                <div class="joystick-thumb" id="joystickThumb"></div>
+            </div>
+        </div>
+
+        <!-- Mobile Controls: action buttons on the right -->
+        <div class="mobile-actions" id="mobileActions">
+            <button class="mobile-button" id="rechargeBtnMobile" onclick="game.rechargeTorch()">🔥</button>
+            <button class="mobile-button" onclick="game.togglePause()">⏸</button>
+            <button class="mobile-button mobile-button-primary" onclick="game.mineAttempt()">⛏️</button>
+        </div>
+
+        <!-- Main Menu -->
+        <div id="mainMenu" class="menu">
+            <div class="menu-content">
+                <div class="menu-title">DEEP DARK</div>
+                <div class="menu-subtitle">Survive the cave. Mine. Escape.</div>
+                <div class="menu-buttons">
+                    <button onclick="game.startGame()">▶ PLAY</button>
+                    <button onclick="game.showLevelsMenu()">🗺️ LEVELS</button>
+                    <button onclick="game.showUpgradesMenu()">⛏️ UPGRADES</button>
+                    <button onclick="game.toggleSound()">🔊 SOUND</button>
+                </div>
+                <div style="font-size: 12px; color: #888; margin-top: 20px;">
+                    Controls: WASD/Arrows to move<br>
+                    Click/Space to mine<br>
+                    E to recharge torch
+                </div>
+            </div>
+        </div>
+
+        <!-- Pause Menu -->
+        <div id="pauseMenu" class="menu hidden">
+            <div class="menu-content">
+                <div class="menu-title">PAUSED</div>
+                <div class="menu-buttons">
+                    <button onclick="game.togglePause()">▶ RESUME</button>
+                    <button onclick="game.restartLevel()">🔄 RESTART</button>
+                    <button onclick="game.showSettingsMenu()">⚙️ SETTINGS</button>
+                    <button onclick="game.returnToMenu()">🏠 MAIN MENU</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Level Complete Menu -->
+        <div id="levelCompleteMenu" class="menu hidden">
+            <div class="menu-content">
+                <div class="menu-title">LEVEL COMPLETE!</div>
+                <div class="stats" id="levelStats"></div>
+                <div class="menu-buttons">
+                    <button onclick="game.nextLevel()">▶ NEXT LEVEL</button>
+                    <button onclick="game.restartLevel()">🔄 RETRY</button>
+                    <button onclick="game.returnToMenu()">🏠 MAIN MENU</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Menu -->
+        <div id="gameOverMenu" class="menu hidden">
+            <div class="menu-content">
+                <div class="menu-title" style="color: #ff4444;">YOU WERE LOST IN THE DARK</div>
+                <div class="stats" id="gameOverStats"></div>
+                <div class="menu-buttons">
+                    <button onclick="game.restartLevel()">🔄 RETRY</button>
+                    <button onclick="game.returnToMenu()">🏠 MAIN MENU</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Levels Menu -->
+        <div id="levelsMenu" class="menu hidden">
+            <div class="menu-content" style="max-height: 80vh; overflow-y: auto; max-width: 400px;">
+                <div class="menu-title">SELECT LEVEL</div>
+                <div id="levelsButtonContainer" class="menu-buttons"></div>
+                <button onclick="game.showMainMenu()" style="margin-top: 15px;">🏠 BACK</button>
+            </div>
+        </div>
+
+        <!-- Upgrades Menu -->
+        <div id="upgradesMenu" class="menu hidden">
+            <div class="menu-content" style="max-height: 80vh; overflow-y: auto; max-width: 500px;">
+                <div class="menu-title">⛏️ UPGRADES</div>
+                <div style="text-align: left; margin-bottom: 20px;">
+                    <div style="color: #ffaa00; font-weight: bold;">Currency: <span id="currencyDisplay">0</span></div>
+                </div>
+                <div id="upgradesContainer"></div>
+                <button onclick="game.showMainMenu()" style="margin-top: 15px; width: 100%;">🏠 BACK</button>
+            </div>
+        </div>
+
+        <!-- Settings Menu -->
+        <div id="settingsMenu" class="menu hidden">
+            <div class="menu-content">
+                <div class="menu-title">⚙️ SETTINGS</div>
+                <div class="menu-buttons">
+                    <button id="soundToggle" onclick="game.toggleSound()">🔊 SOUND: ON</button>
+                    <button onclick="game.resetAllProgress()">🔴 RESET PROGRESS</button>
+                </div>
+                <div style="margin-top: 20px;">
+                    <button onclick="game.returnToMenu()" style="width: 200px;">BACK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ================================================================
+        // DEEP DARK - Survival Mining Game
+        // ================================================================
+
+        class Game {
+            constructor() {
+                this.canvas = document.getElementById('gameCanvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.minimapCanvas = document.getElementById('minimap');
+                this.minimapCtx = this.minimapCanvas.getContext('2d');
+
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+                this.minimapCanvas.width = 150;
+                this.minimapCanvas.height = 150;
+
+                // Offscreen canvas used to build the true darkness mask (see
+                // renderLighting) - kept in sync with the main canvas size.
+                this.darknessCanvas = document.createElement('canvas');
+                this.darknessCanvas.width = this.canvas.width;
+                this.darknessCanvas.height = this.canvas.height;
+                this.darknessCtx = this.darknessCanvas.getContext('2d');
+
+                // Game state
+                this.gameState = 'menu'; // menu, playing, paused, levelComplete, gameOver
+                this.currentLevel = 1;
+                this.maxLevel = 10;
+
+                // Player
+                this.player = {
+                    x: 0,
+                    y: 0,
+                    width: 20,
+                    height: 20,
+                    vx: 0,
+                    vy: 0,
+                    speed: 3,
+                    health: 100,
+                    maxHealth: 100,
+                    direction: 0, // radians
+                    facingLeft: false,
+                    isMoving: false,
+                    walkCycle: 0,
+                    mining: false,
+                    miningTarget: null,
+                    miningProgress: 0,
+                    invincibilityFrames: 0
+                };
+
+                // Torch
+                this.torch = {
+                    energy: 100,
+                    maxEnergy: 100,
+                    drainRate: 0.05,
+                    radius: 150,
+                    // FIRE button cooldown, counted down in frames (~60/sec).
+                    rechargeCooldown: 0
+                };
+
+                // Inventory
+                this.inventory = {
+                    stone: 0,
+                    coal: 0,
+                    iron: 0,
+                    crystal: 0,
+                    rareCrystal: 0
+                };
+
+                // Game variables
+                this.cave = [];
+                this.rocks = [];
+                this.enemies = [];
+                this.particles = [];
+                this.exitPos = null;
+                this.exitRevealed = false;
+                this.levelStartTime = 0;
+                this.levelStats = null;
+
+                // Input
+                this.keys = {};
+                this.mousePos = { x: 0, y: 0 };
+                this.soundEnabled = localStorage.getItem('soundEnabled') !== 'false';
+                this.audioContext = null;
+
+                // Mobile
+                this.joystickActive = false;
+                this.joystickInput = { x: 0, y: 0 };
+
+                // Upgrades/Save
+                this.upgrades = {
+                    torchRadius: 0,
+                    torchDrain: 0,
+                    miningSpeed: 0,
+                    playerHealth: 0,
+                    playerSpeed: 0
+                };
+                this.currency = 0;
+
+                this.loadProgress();
+                this.setupEventListeners();
+                this.initAudio();
+                this.resizeCanvas();
+            }
+
+            setupEventListeners() {
+                window.addEventListener('keydown', (e) => {
+                    this.keys[e.key.toLowerCase()] = true;
+                    if (e.key === ' ') {
+                        e.preventDefault();
+                        if (this.gameState === 'playing') this.mineAttempt();
+                    }
+                    if (e.key === 'e' || e.key === 'E') {
+                        e.preventDefault();
+                        if (this.gameState === 'playing') this.rechargeTorch();
+                    }
+                    if (e.key === 'Escape') {
+                        e.preventDefault();
+                        if (this.gameState === 'playing') this.togglePause();
+                    }
+                });
+
+                window.addEventListener('keyup', (e) => {
+                    this.keys[e.key.toLowerCase()] = false;
+                });
+
+                window.addEventListener('mousemove', (e) => {
+                    this.mousePos.x = e.clientX;
+                    this.mousePos.y = e.clientY;
+                });
+
+                window.addEventListener('click', (e) => {
+                    if (this.gameState === 'playing') {
+                        this.mineAttempt();
+                    }
+                });
+
+                window.addEventListener('resize', () => {
+                    this.resizeCanvas();
+                });
+
+                // Mobile joystick
+                const joystick = document.getElementById('joystick');
+                const joystickThumb = document.getElementById('joystickThumb');
+
+                joystick.addEventListener('touchstart', (e) => {
+                    e.preventDefault();
+                    this.joystickActive = true;
+                    this.updateJoystick(e.touches[0], joystick, joystickThumb);
+                });
+
+                document.addEventListener('touchmove', (e) => {
+                    if (this.joystickActive) {
+                        e.preventDefault();
+                        this.updateJoystick(e.touches[0], joystick, joystickThumb);
+                    }
+                }, { passive: false });
+
+                document.addEventListener('touchend', (e) => {
+                    if (this.joystickActive) {
+                        this.joystickActive = false;
+                        this.joystickInput = { x: 0, y: 0 };
+                        joystickThumb.style.transform = 'translate(-50%, -50%)';
+                    }
+                });
+            }
+
+            updateJoystick(touch, joystickElement, thumbElement) {
+                const rect = joystickElement.getBoundingClientRect();
+                const centerX = rect.left + rect.width / 2;
+                const centerY = rect.top + rect.height / 2;
+                const dx = touch.clientX - centerX;
+                const dy = touch.clientY - centerY;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                const maxDistance = rect.width / 2;
+
+                if (distance === 0) {
+                    this.joystickInput = { x: 0, y: 0 };
+                    if (thumbElement) thumbElement.style.transform = 'translate(-50%, -50%)';
+                } else {
+                    const ratio = Math.min(distance, maxDistance) / maxDistance;
+                    this.joystickInput.x = (dx / distance) * ratio;
+                    this.joystickInput.y = (dy / distance) * ratio;
+
+                    // Update thumb visual position
+                    if (thumbElement) {
+                        const thumbX = (dx / distance) * (maxDistance * 0.6);
+                        const thumbY = (dy / distance) * (maxDistance * 0.6);
+                        thumbElement.style.transform = `translate(calc(-50% + ${thumbX}px), calc(-50% + ${thumbY}px))`;
+                    }
+                }
+            }
+
+            resizeCanvas() {
+                this.canvas.width = window.innerWidth;
+                this.canvas.height = window.innerHeight;
+            }
+
+            toggleFullscreen() {
+                const elem = document.documentElement;
+                
+                if (!document.fullscreenElement) {
+                    if (elem.requestFullscreen) {
+                        elem.requestFullscreen().catch(err => {
+                            console.log('Fullscreen request failed:', err);
+                        });
+                    } else if (elem.webkitRequestFullscreen) {
+                        elem.webkitRequestFullscreen();
+                    } else if (elem.mozRequestFullScreen) {
+                        elem.mozRequestFullScreen();
+                    } else if (elem.msRequestFullscreen) {
+                        elem.msRequestFullscreen();
+                    }
+                } else {
+                    if (document.exitFullscreen) {
+                        document.exitFullscreen();
+                    } else if (document.webkitExitFullscreen) {
+                        document.webkitExitFullscreen();
+                    } else if (document.mozCancelFullScreen) {
+                        document.mozCancelFullScreen();
+                    } else if (document.msExitFullscreen) {
+                        document.msExitFullscreen();
+                    }
+                }
+            }
+
+            initAudio() {
+                try {
+                    this.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                } catch (e) {
+                    console.log('Audio not supported');
+                }
+            }
+
+            playSound(freq, duration, type = 'sine') {
+                if (!this.soundEnabled || !this.audioContext) return;
+
+                // BUGFIX: browsers create AudioContext in a "suspended" state until
+                // a user gesture resumes it, so sound never played previously even
+                // after clicking Play. Resume it lazily on every call.
+                if (this.audioContext.state === 'suspended') {
+                    this.audioContext.resume().catch(() => {});
+                }
+
+                try {
+                    const now = this.audioContext.currentTime;
+                    const osc = this.audioContext.createOscillator();
+                    const gain = this.audioContext.createGain();
+
+                    osc.type = type;
+                    osc.frequency.value = freq;
+                    gain.gain.setValueAtTime(0.1, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + duration);
+
+                    osc.connect(gain);
+                    gain.connect(this.audioContext.destination);
+
+                    osc.start(now);
+                    osc.stop(now + duration);
+                } catch (e) {
+                    // Audio failed silently
+                }
+            }
+
+            // ================================================================
+            // GAME LOOP & STATE
+            // ================================================================
+
+            startGame() {
+                this.currentLevel = 1;
+                this.currency = 0;
+                this.inventory = { stone: 0, coal: 0, iron: 0, crystal: 0, rareCrystal: 0 };
+                this.startLevel(1);
+            }
+
+            startLevel(levelNum) {
+                this.currentLevel = levelNum;
+                this.gameState = 'playing';
+                this.levelStartTime = Date.now();
+
+                // Adjust difficulty based on level
+                const difficulty = Math.min(levelNum / 10, 1);
+                this.torch.drainRate = 0.03 + (difficulty * 0.04);
+                this.torch.energy = 100;
+                this.torch.rechargeCooldown = 0;
+                this.player.health = 100 + (this.upgrades.playerHealth * 10);
+                this.player.maxHealth = this.player.health;
+
+                // Generate cave
+                this.generateCave();
+                this.hideAllMenus();
+
+                this.playSound(440, 0.2);
+            }
+
+            // Picks a border tile (top/bottom/left/right) for the hidden finish
+            // line, far enough from the start that it's never trivially close,
+            // plus the "approach" tile one step inward that the guaranteed
+            // tunnel is carved to (the border tile itself stays sealed).
+            chooseExitBorder(width, height) {
+                const startI = 11, startJ = 11;
+                const sides = ['top', 'bottom', 'left', 'right'];
+                for (let i = sides.length - 1; i > 0; i--) {
+                    const j = Math.floor(Math.random() * (i + 1));
+                    [sides[i], sides[j]] = [sides[j], sides[i]];
+                }
+
+                for (let side of sides) {
+                    let borderI, borderJ, approachI, approachJ;
+                    if (side === 'right') {
+                        borderI = width - 3;
+                        approachI = borderI - 1;
+                        borderJ = approachJ = 10 + Math.floor(Math.random() * (height - 20));
+                    } else if (side === 'left') {
+                        borderI = 2;
+                        approachI = borderI + 1;
+                        borderJ = approachJ = 10 + Math.floor(Math.random() * (height - 20));
+                    } else if (side === 'top') {
+                        borderJ = 2;
+                        approachJ = borderJ + 1;
+                        borderI = approachI = 10 + Math.floor(Math.random() * (width - 20));
+                    } else {
+                        borderJ = height - 3;
+                        approachJ = borderJ - 1;
+                        borderI = approachI = 10 + Math.floor(Math.random() * (width - 20));
+                    }
+
+                    if (Math.hypot(borderI - startI, borderJ - startJ) >= 30) {
+                        return { side, borderI, borderJ, approachI, approachJ };
+                    }
+                }
+
+                // Fallback (shouldn't normally trigger): right border, mid-height.
+                return {
+                    side: 'right',
+                    borderI: width - 3,
+                    borderJ: Math.floor(height / 2),
+                    approachI: width - 4,
+                    approachJ: Math.floor(height / 2)
+                };
+            }
+
+            generateCave() {
+                const width = 100;
+                const height = 100;
+                const tileSize = 20;
+
+                // Initialize cave
+                this.cave = Array(height).fill().map(() => Array(width).fill(1)); // 1 = wall
+
+                // Simple cave generation using cellular automata
+                for (let i = 0; i < width; i++) {
+                    for (let j = 0; j < height; j++) {
+                        if (Math.random() < 0.5) {
+                            this.cave[j][i] = 0; // empty
+                        }
+                    }
+                }
+
+                // Smooth the cave
+                for (let iter = 0; iter < 3; iter++) {
+                    const newCave = this.cave.map(row => [...row]);
+                    for (let i = 1; i < width - 1; i++) {
+                        for (let j = 1; j < height - 1; j++) {
+                            let neighbors = 0;
+                            for (let di = -1; di <= 1; di++) {
+                                for (let dj = -1; dj <= 1; dj++) {
+                                    if (this.cave[j + dj][i + di] === 1) neighbors++;
+                                }
+                            }
+                            newCave[j][i] = neighbors > 4 ? 1 : 0;
+                        }
+                    }
+                    this.cave = newCave;
+                }
+
+                // Ensure large empty areas
+                this.cave[10][10] = 0;
+                for (let i = 0; i < 5; i++) {
+                    for (let j = 0; j < 5; j++) {
+                        this.cave[10 + j][10 + i] = 0;
+                    }
+                }
+
+                // Place player at start
+                this.player.x = 11 * tileSize + tileSize / 2;
+                this.player.y = 11 * tileSize + tileSize / 2;
+
+                // Place exit as a hidden finish line on a random accessible
+                // border of the level (top/bottom/left/right, picked well away
+                // from the start so it's never trivially adjacent). The border
+                // tile itself is left as a solid wall with a disguised mineable
+                // rock over it - the finish line stays hidden and only appears
+                // once the player mines through it, puzzle-style.
+                const exitSpot = this.chooseExitBorder(width, height);
+                const exitI = exitSpot.borderI;
+                const exitJ = exitSpot.borderJ;
+                this.exitPos = { x: exitI * tileSize + tileSize / 2, y: exitJ * tileSize + tileSize / 2 };
+                this.exitTile = { i: exitI, j: exitJ };
+                this.exitRevealed = false;
+
+                // Keep the border tile itself solid for now - it opens only when
+                // the disguised finishGate rock placed on it (below) is mined.
+                this.cave[exitJ][exitI] = 1;
+
+                // BUGFIX: the cellular-automata pass above gives no guarantee that the
+                // start and the approach to the exit are actually connected - carve a
+                // guaranteed tunnel up to (but not through) the hidden border tile so
+                // every level is always completable (requirement #15).
+                this.carvePathToExit(11, 11, exitSpot.approachI, exitSpot.approachJ);
+                this.ensureConnectivity(11, 11, exitSpot.approachI, exitSpot.approachJ);
+                // Re-seal the border tile in case the connectivity carve touched it.
+                this.cave[exitJ][exitI] = 1;
+
+                // Reset fog-of-war: only tiles the player has actually lit up get
+                // revealed on the minimap, matching the "explore to reveal" spec.
+                this.explored = Array(height).fill().map(() => Array(width).fill(false));
+
+                // Place rocks
+                this.rocks = [];
+                const materials = [
+                    { type: 'stone', weight: 0.6, health: 1 },
+                    { type: 'coal', weight: 0.2, health: 1 },
+                    { type: 'iron', weight: 0.1, health: 2 },
+                    { type: 'crystal', weight: 0.05, health: 3 },
+                    { type: 'rareCrystal', weight: 0.01, health: 4 }
+                ];
+
+                for (let i = 0; i < width; i++) {
+                    for (let j = 0; j < height; j++) {
+                        if (this.cave[j][i] === 1 && Math.random() < 0.3) {
+                            let rand = Math.random();
+                            for (let mat of materials) {
+                                if (rand < mat.weight) {
+                                    this.rocks.push({
+                                        x: i * tileSize + tileSize / 2,
+                                        y: j * tileSize + tileSize / 2,
+                                        type: mat.type,
+                                        health: mat.health,
+                                        maxHealth: mat.health,
+                                        // Precomputed irregular polygon so each
+                                        // rock has a consistent, natural, non-box
+                                        // silhouette instead of a plain circle.
+                                        shape: this.generateRockShape()
+                                    });
+                                    break;
+                                }
+                                rand -= mat.weight;
+                            }
+                        }
+                    }
+                }
+
+                // Hidden finish gate: a disguised rock (renders identically to
+                // ordinary stone, see renderRock) placed directly over the
+                // sealed border tile. Mining it is the only way to reveal and
+                // open the finish line - remove any ordinary material rock
+                // that randomly landed on the same tile first so there's only
+                // ever one rock there.
+                this.rocks = this.rocks.filter(r =>
+                    !(Math.floor(r.x / tileSize) === exitI && Math.floor(r.y / tileSize) === exitJ));
+                this.rocks.push({
+                    x: this.exitPos.x,
+                    y: this.exitPos.y,
+                    type: 'finishGate',
+                    health: 3,
+                    maxHealth: 3,
+                    shape: this.generateRockShape()
+                });
+
+                // Place enemies
+                this.enemies = [];
+                const numEnemies = 2 + this.currentLevel;
+                for (let i = 0; i < numEnemies; i++) {
+                    let x, y;
+                    // BUGFIX: this loop had no attempt cap, so a cave with few open
+                    // tiles far from the player could hang the browser generating a
+                    // level. Fall back to any open tile after enough tries.
+                    let attempts = 0;
+                    do {
+                        x = Math.random() * width * tileSize;
+                        y = Math.random() * height * tileSize;
+                        attempts++;
+                    } while (attempts < 300 && (this.getTile(x, y) === 1 || Math.hypot(x - this.player.x, y - this.player.y) < 500));
+
+                    const enemyTypes = ['bat', 'shadow', 'crawler'];
+                    const type = enemyTypes[Math.floor(Math.random() * enemyTypes.length)];
+
+                    this.enemies.push({
+                        x: x,
+                        y: y,
+                        type: type,
+                        vx: 0,
+                        vy: 0,
+                        speed: 1 + Math.random() * 0.5,
+                        health: 20,
+                        maxHealth: 20,
+                        aggroDistance: 200 + this.currentLevel * 10
+                    });
+                }
+
+                this.particles = [];
+            }
+
+            getTile(x, y) {
+                const i = Math.floor(x / 20);
+                const j = Math.floor(y / 20);
+                if (j < 0 || j >= this.cave.length || i < 0 || i >= this.cave[0].length) return 1;
+                return this.cave[j][i];
+            }
+
+            // Produces a lumpy, irregular polygon outline (in local space) so
+            // mineable rocks read as chunks of stone rather than plain circles.
+            generateRockShape() {
+                const sides = 7 + Math.floor(Math.random() * 3);
+                const points = [];
+                for (let i = 0; i < sides; i++) {
+                    const angle = (i / sides) * Math.PI * 2;
+                    const r = 7 + Math.random() * 4.5;
+                    points.push({ angle, r });
+                }
+                return points;
+            }
+
+            // Carves an organic (slightly wandering) tunnel of open tiles directly
+            // between two grid coordinates so a path is guaranteed to exist.
+            carvePathToExit(startI, startJ, exitI, exitJ) {
+                const height = this.cave.length;
+                const width = this.cave[0].length;
+                // CHANGE: this used to carve a full 3x3 block around every step,
+                // producing wide 3-tile tunnels. Carving only the single cell
+                // gives a genuinely narrow, 1-box-wide corridor to run through,
+                // as requested - the precision-movement fix below is what makes
+                // that actually navigable instead of a place to get stuck.
+                const carveAt = (ci, cj) => {
+                    if (cj >= 0 && cj < height && ci >= 0 && ci < width) {
+                        this.cave[cj][ci] = 0;
+                    }
+                };
+
+                let i = startI, j = startJ;
+                carveAt(i, j);
+                let guard = 0;
+                const maxSteps = width + height + 50;
+                while ((i !== exitI || j !== exitJ) && guard < maxSteps) {
+                    guard++;
+                    if (i !== exitI && (j === exitJ || Math.random() < 0.5)) {
+                        i += i < exitI ? 1 : -1;
+                    } else if (j !== exitJ) {
+                        j += j < exitJ ? 1 : -1;
+                    }
+                    // occasional perpendicular jitter so the tunnel feels natural
+                    if (Math.random() < 0.25) {
+                        if (i !== exitI) {
+                            const nj = j + (Math.random() < 0.5 ? 1 : -1);
+                            if (nj > 2 && nj < height - 2) j = nj;
+                        } else {
+                            const ni = i + (Math.random() < 0.5 ? 1 : -1);
+                            if (ni > 2 && ni < width - 2) i = ni;
+                        }
+                    }
+                    carveAt(i, j);
+                }
+                // Guarantee the final tile is carved even if the guard tripped
+                carveAt(exitI, exitJ);
+            }
+
+            // Defensive check: flood-fill from the start tile and, in the rare case
+            // the exit still isn't reachable, punch a direct straight corridor so
+            // the level is never impossible to finish.
+            ensureConnectivity(startI, startJ, exitI, exitJ) {
+                const height = this.cave.length;
+                const width = this.cave[0].length;
+                const visited = Array(height).fill().map(() => Array(width).fill(false));
+                const stack = [[startI, startJ]];
+                visited[startJ][startI] = true;
+                let reached = false;
+
+                while (stack.length) {
+                    const [ci, cj] = stack.pop();
+                    if (ci === exitI && cj === exitJ) { reached = true; break; }
+                    const neighbors = [[ci + 1, cj], [ci - 1, cj], [ci, cj + 1], [ci, cj - 1]];
+                    for (let [ni, nj] of neighbors) {
+                        if (ni >= 0 && ni < width && nj >= 0 && nj < height &&
+                            !visited[nj][ni] && this.cave[nj][ni] === 0) {
+                            visited[nj][ni] = true;
+                            stack.push([ni, nj]);
+                        }
+                    }
+                }
+
+                if (!reached) {
+                    this.carvePathToExit(startI, startJ, exitI, exitJ);
+                }
+            }
+
+            update() {
+                if (this.gameState !== 'playing') return;
+
+                // Update player movement
+                let moveX = 0, moveY = 0;
+
+                if (this.keys['w'] || this.keys['arrowup']) moveY -= 1;
+                if (this.keys['s'] || this.keys['arrowdown']) moveY += 1;
+                if (this.keys['a'] || this.keys['arrowleft']) moveX -= 1;
+                if (this.keys['d'] || this.keys['arrowright']) moveX += 1;
+
+                // Mobile joystick
+                if (this.joystickActive) {
+                    moveX += this.joystickInput.x;
+                    moveY += this.joystickInput.y;
+                }
+
+                if (moveX !== 0 || moveY !== 0) {
+                    const len = Math.hypot(moveX, moveY);
+                    moveX /= len;
+                    moveY /= len;
+                    this.player.direction = Math.atan2(moveY, moveX);
+                    // Track facing for the humanoid sprite (flip left/right
+                    // instead of rotating the whole body) and advance the
+                    // walk-cycle used for the leg/arm swing animation.
+                    if (Math.abs(moveX) > 0.05) {
+                        this.player.facingLeft = moveX < 0;
+                    }
+                    this.player.isMoving = true;
+                    this.player.walkCycle += 0.25;
+                } else {
+                    this.player.isMoving = false;
+                }
+
+                const newX = this.player.x + moveX * this.player.speed;
+                const newY = this.player.y + moveY * this.player.speed;
+
+                // PRECISION MOVEMENT: check each axis separately so the player
+                // slides along a wall when only one axis is blocked, instead of
+                // stopping dead on both. This is what lets the player run freely
+                // through narrow 1-box-wide corridors instead of snagging on
+                // corners.
+                if (this.canMoveTo(newX, this.player.y)) {
+                    this.player.x = newX;
+                }
+                if (this.canMoveTo(this.player.x, newY)) {
+                    this.player.y = newY;
+                }
+
+                // Update torch
+                this.torch.energy = Math.max(0, this.torch.energy - this.torch.drainRate);
+
+                // FIRE button cooldown countdown
+                if (this.torch.rechargeCooldown > 0) {
+                    this.torch.rechargeCooldown--;
+                }
+
+                // Update light radius based on energy
+                // POLISH: raised across every tier - the torch was reading as
+                // far too small to comfortably explore/mine by.
+                if (this.torch.energy > 70) {
+                    this.torch.radius = 260 + this.upgrades.torchRadius * 25;
+                } else if (this.torch.energy > 40) {
+                    this.torch.radius = 190 + this.upgrades.torchRadius * 22;
+                } else if (this.torch.energy > 15) {
+                    this.torch.radius = 130 + this.upgrades.torchRadius * 15;
+                } else {
+                    this.torch.radius = 80 + this.upgrades.torchRadius * 8;
+                }
+
+                // Torch death
+                if (this.torch.energy === 0) {
+                    this.player.health -= 0.2;
+                    if (this.player.health <= 0) {
+                        this.gameOver();
+                    }
+                }
+
+                // Update mining
+                if (this.player.mining && this.player.miningTarget) {
+                    const target = this.player.miningTarget;
+                    // BUGFIX: previously mining kept progressing even if the player
+                    // walked away (or the rock was gone), letting mining complete
+                    // from anywhere. Cancel it if the player leaves range.
+                    const stillThere = this.rocks.includes(target);
+                    const dist = Math.hypot(target.x - this.player.x, target.y - this.player.y);
+                    if (!stillThere || dist > 70) {
+                        this.player.mining = false;
+                        this.player.miningTarget = null;
+                        this.player.miningProgress = 0;
+                    } else {
+                        this.player.miningProgress++;
+                        const miningTime = this.getMiningTime(target.type);
+                        if (this.player.miningProgress >= miningTime) {
+                            this.completeMining(target);
+                            this.player.mining = false;
+                            this.player.miningTarget = null;
+                            this.player.miningProgress = 0;
+                        }
+                    }
+                }
+
+                // Update enemies
+                for (let enemy of this.enemies) {
+                    const dist = Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y);
+                    
+                    if (dist < this.torch.radius) {
+                        // In light - aggro
+                        const angle = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x);
+                        enemy.vx = Math.cos(angle) * enemy.speed;
+                        enemy.vy = Math.sin(angle) * enemy.speed;
+                    } else {
+                        // In dark - wander
+                        if (Math.random() < 0.02) {
+                            const randomAngle = Math.random() * Math.PI * 2;
+                            enemy.vx = Math.cos(randomAngle) * enemy.speed * 0.5;
+                            enemy.vy = Math.sin(randomAngle) * enemy.speed * 0.5;
+                        }
+                    }
+
+                    const newEnemyX = enemy.x + enemy.vx;
+                    const newEnemyY = enemy.y + enemy.vy;
+
+                    if (this.getTile(newEnemyX, newEnemyY) === 0) {
+                        enemy.x = newEnemyX;
+                        enemy.y = newEnemyY;
+                    }
+
+                    // Check collision with player
+                    if (this.player.invincibilityFrames <= 0 && 
+                        Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y) < 25) {
+                        this.player.health -= 10;
+                        this.player.invincibilityFrames = 30;
+                        this.playSound(100, 0.2);
+                        this.screenShake();
+
+                        if (this.player.health <= 0) {
+                            this.gameOver();
+                        }
+                    }
+                }
+
+                if (this.player.invincibilityFrames > 0) {
+                    this.player.invincibilityFrames--;
+                }
+
+                // Check exit collision (only once the hidden finish line has
+                // been mined open)
+                if (this.exitRevealed &&
+                    Math.hypot(this.exitPos.x - this.player.x, this.exitPos.y - this.player.y) < 40) {
+                    this.levelComplete();
+                }
+
+                // Mark tiles within the torch light as explored (fog-of-war).
+                // BUGFIX: previously the minimap only ever drew the *current* light
+                // circle, so already-visited areas (and the exit) vanished again the
+                // moment the player moved away instead of staying revealed/hidden
+                // per the spec.
+                this.markExplored();
+
+                // Update particles
+                this.particles = this.particles.filter(p => {
+                    p.life--;
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    return p.life > 0;
+                });
+
+                // Update HUD
+                this.updateHUD();
+            }
+
+            markExplored() {
+                const tileSize = 20;
+                const radiusTiles = Math.ceil(this.torch.radius / tileSize);
+                const pi = Math.floor(this.player.x / tileSize);
+                const pj = Math.floor(this.player.y / tileSize);
+                for (let di = -radiusTiles; di <= radiusTiles; di++) {
+                    for (let dj = -radiusTiles; dj <= radiusTiles; dj++) {
+                        const ni = pi + di, nj = pj + dj;
+                        if (nj >= 0 && nj < this.cave.length && ni >= 0 && ni < this.cave[0].length) {
+                            if (di * di + dj * dj <= radiusTiles * radiusTiles) {
+                                this.explored[nj][ni] = true;
+                            }
+                        }
+                    }
+                }
+            }
+
+            canMoveTo(x, y) {
+                // CHANGE: was width/2 (10px), exactly the width of a 1-tile
+                // corridor with no clearance - the player would clip the wall
+                // and stick. A slightly smaller radius gives enough margin to
+                // move precisely through narrow 1-box-wide spaces.
+                const radius = this.player.width * 0.35;
+                const checkPoints = [
+                    { x: x, y: y },
+                    { x: x + radius, y: y + radius },
+                    { x: x - radius, y: y + radius },
+                    { x: x + radius, y: y - radius },
+                    { x: x - radius, y: y - radius }
+                ];
+
+                for (let point of checkPoints) {
+                    if (this.getTile(point.x, point.y) === 1) return false;
+                }
+                return true;
+            }
+
+            getMiningTime(type) {
+                const baseTimes = {
+                    stone: 25,
+                    coal: 35,
+                    iron: 50,
+                    crystal: 75,
+                    rareCrystal: 100
+                };
+                const time = baseTimes[type] || 30;
+                const miningSpeed = 1 + (this.upgrades.miningSpeed * 0.2);
+                return time / miningSpeed;
+            }
+
+            mineAttempt() {
+                if (this.gameState !== 'playing') return;
+
+                // Find nearest rock
+                let nearest = null;
+                let nearestDist = 60;
+
+                for (let rock of this.rocks) {
+                    const dist = Math.hypot(rock.x - this.player.x, rock.y - this.player.y);
+                    if (dist < nearestDist) {
+                        nearest = rock;
+                        nearestDist = dist;
+                    }
+                }
+
+                if (nearest && !this.player.mining) {
+                    this.player.mining = true;
+                    this.player.miningTarget = nearest;
+                    this.player.miningProgress = 0;
+                    this.playSound(200, 0.1);
+                }
+            }
+
+            completeMining(rock) {
+                // Hidden finish line: mining this disguised rock reveals and
+                // opens the exit, puzzle-style, instead of yielding a material.
+                if (rock.type === 'finishGate') {
+                    this.exitRevealed = true;
+                    this.playSound(800, 0.4);
+                    this.createParticles(rock.x, rock.y, 30);
+                    this.rocks = this.rocks.filter(r => r !== rock);
+
+                    const ti = Math.floor(rock.x / 20);
+                    const tj = Math.floor(rock.y / 20);
+                    if (tj >= 0 && tj < this.cave.length && ti >= 0 && ti < this.cave[0].length) {
+                        this.cave[tj][ti] = 0;
+                    }
+
+                    this.currency += 50; // bonus for finding the hidden exit
+                    return;
+                }
+
+                this.inventory[rock.type]++;
+                this.playSound(400, 0.15);
+                this.createParticles(rock.x, rock.y, 10);
+                this.rocks = this.rocks.filter(r => r !== rock);
+
+                // BUGFIX: mining previously only removed the rock from the list but
+                // never opened up the wall tile it sat in, so mining never actually
+                // changed the cave (violates "mining must actually modify the cave").
+                const ti = Math.floor(rock.x / 20);
+                const tj = Math.floor(rock.y / 20);
+                if (tj >= 0 && tj < this.cave.length && ti >= 0 && ti < this.cave[0].length) {
+                    this.cave[tj][ti] = 0;
+                }
+
+                const miningSpeedBonus = this.upgrades.miningSpeed * 5;
+                this.currency += (rock.health + miningSpeedBonus);
+            }
+
+            rechargeTorch() {
+                // FIRE button. Has a 3-second cooldown (180 frames at ~60fps)
+                // so it can't be spammed.
+                if (this.gameState !== 'playing') return;
+                if (this.torch.rechargeCooldown > 0) return;
+
+                // CHANGE: "works in every situation" - every material type can
+                // now fuel the torch (previously stone/iron did nothing), and
+                // it costs 2 materials per use instead of 1. Highest-value
+                // materials are spent first.
+                const totalMaterials = this.inventory.stone + this.inventory.coal +
+                    this.inventory.iron + this.inventory.crystal + this.inventory.rareCrystal;
+
+                if (totalMaterials < 2) {
+                    this.playSound(150, 0.15); // denied - not enough materials
+                    return;
+                }
+
+                const rechargeValues = { rareCrystal: 60, crystal: 30, iron: 15, coal: 15, stone: 5 };
+                let toSpend = 2;
+                let gained = 0;
+                for (let material of Object.keys(rechargeValues)) {
+                    while (toSpend > 0 && this.inventory[material] > 0) {
+                        this.inventory[material]--;
+                        gained += rechargeValues[material];
+                        toSpend--;
+                    }
+                }
+
+                this.torch.energy = Math.min(100, this.torch.energy + gained);
+                this.torch.rechargeCooldown = 180; // 3 second cooldown
+                this.playSound(600, 0.3);
+                this.createParticles(this.player.x, this.player.y, 20);
+            }
+
+            createParticles(x, y, count) {
+                for (let i = 0; i < count; i++) {
+                    const angle = Math.random() * Math.PI * 2;
+                    const speed = Math.random() * 3 + 1;
+                    this.particles.push({
+                        x: x,
+                        y: y,
+                        vx: Math.cos(angle) * speed,
+                        vy: Math.sin(angle) * speed,
+                        life: 30,
+                        color: Math.random() > 0.5 ? '#ffaa00' : '#ff8800'
+                    });
+                }
+            }
+
+            screenShake() {
+                this.canvas.classList.add('screen-shake');
+                setTimeout(() => this.canvas.classList.remove('screen-shake'), 300);
+            }
+
+            updateHUD() {
+                document.getElementById('torchFill').style.width = (this.torch.energy) + '%';
+                document.getElementById('torchText').textContent = Math.ceil(this.torch.energy) + '%';
+
+                const healthPercent = (this.player.health / this.player.maxHealth) * 100;
+                document.getElementById('healthFill').style.width = healthPercent + '%';
+                document.getElementById('healthText').textContent = Math.ceil(this.player.health) + '/' + this.player.maxHealth;
+
+                if (this.torch.energy < 15) {
+                    document.getElementById('torchFill').classList.add('warning');
+                } else {
+                    document.getElementById('torchFill').classList.remove('warning');
+                }
+
+                if (this.player.health < 30) {
+                    document.getElementById('healthFill').classList.add('low');
+                } else {
+                    document.getElementById('healthFill').classList.remove('low');
+                }
+
+                // Materials counter (compact top HUD, replaces the old itemized
+                // inventory panel per request)
+                const totalMaterials = this.inventory.stone + this.inventory.coal + this.inventory.iron + this.inventory.crystal + this.inventory.rareCrystal;
+                document.getElementById('materialsHud').textContent = `🎒 Materials: ${totalMaterials}`;
+
+                // Level info
+                const elapsed = Math.floor((Date.now() - this.levelStartTime) / 1000);
+                document.getElementById('levelText').textContent = `Level: ${this.currentLevel}`;
+                document.getElementById('timeText').textContent = `Time: ${elapsed}s`;
+
+                // FIRE button cooldown feedback
+                const onCooldown = this.torch.rechargeCooldown > 0;
+                const cooldownSecs = Math.ceil(this.torch.rechargeCooldown / 60);
+                const rechargeBtn = document.getElementById('rechargeBtn');
+                const rechargeBtnMobile = document.getElementById('rechargeBtnMobile');
+                if (rechargeBtn) {
+                    rechargeBtn.textContent = onCooldown ? `🔥 RECHARGE (${cooldownSecs}s)` : '🔥 RECHARGE';
+                    rechargeBtn.style.opacity = onCooldown ? '0.5' : '1';
+                }
+                if (rechargeBtnMobile) {
+                    rechargeBtnMobile.style.opacity = onCooldown ? '0.5' : '1';
+                }
+            }
+
+            levelComplete() {
+                this.gameState = 'levelComplete';
+                const timeElapsed = Math.floor((Date.now() - this.levelStartTime) / 1000);
+
+                // Rewards
+                let reward = Math.floor(100 + (this.torch.energy * 2) - (timeElapsed * 0.5));
+                reward = Math.max(50, reward);
+                this.currency += reward;
+
+                this.levelStats = {
+                    time: timeElapsed,
+                    collected: this.inventory.stone + this.inventory.coal + this.inventory.iron + this.inventory.crystal + this.inventory.rareCrystal,
+                    torchRemaining: Math.ceil(this.torch.energy),
+                    reward: reward
+                };
+
+                this.saveProgress();
+                this.showLevelCompleteMenu();
+                this.playSound(800, 0.3);
+            }
+
+            gameOver() {
+                this.gameState = 'gameOver';
+                const timeElapsed = Math.floor((Date.now() - this.levelStartTime) / 1000);
+
+                document.getElementById('gameOverStats').innerHTML = `
+                    <div class="stats-item">Time survived: ${timeElapsed}s</div>
+                    <div class="stats-item">Materials collected: ${this.inventory.stone + this.inventory.coal + this.inventory.iron + this.inventory.crystal + this.inventory.rareCrystal}</div>
+                    <div class="stats-item">Torch energy: ${Math.ceil(this.torch.energy)}%</div>
+                `;
+
+                document.getElementById('gameOverMenu').classList.remove('hidden');
+            }
+
+            // ================================================================
+            // RENDERING
+            // ================================================================
+
+            render() {
+                // BUGFIX: render() runs from the very first animation frame, before
+                // startLevel() ever generates a cave. renderCave()/renderMinimap()
+                // both dereference this.cave[0], which is undefined on the initial
+                // empty array and throws - killing the requestAnimationFrame loop
+                // forever (so the game canvas never renders even after clicking
+                // Play). Skip world rendering until a cave actually exists.
+                if (!this.cave || this.cave.length === 0) return;
+
+                this.ctx.fillStyle = '#0a0a0a';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+
+                const camX = this.player.x - this.canvas.width / 2;
+                const camY = this.player.y - this.canvas.height / 2;
+
+                this.ctx.save();
+                this.ctx.translate(-camX, -camY);
+
+                // Draw cave
+                this.renderCave();
+
+                // Draw rocks
+                for (let rock of this.rocks) {
+                    this.renderRock(rock);
+                }
+
+                // Draw exit (only after the hidden finish line has been mined open)
+                if (this.exitRevealed) {
+                    this.renderExit();
+                }
+
+                // Draw enemies
+                for (let enemy of this.enemies) {
+                    if (Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y) < 600) {
+                        this.renderEnemy(enemy);
+                    }
+                }
+
+                // Draw particles
+                for (let p of this.particles) {
+                    this.ctx.fillStyle = p.color;
+                    this.ctx.globalAlpha = p.life / 30;
+                    this.ctx.fillRect(p.x - 2, p.y - 2, 4, 4);
+                    this.ctx.globalAlpha = 1;
+                }
+
+                // Draw player
+                this.renderPlayer();
+
+                this.ctx.restore();
+
+                // Draw lighting mask
+                this.renderLighting(camX, camY);
+
+                // Draw minimap
+                this.renderMinimap();
+            }
+
+            renderCave() {
+                const tileSize = 20;
+                // Muted, slightly cool stone-gray for walls (not saturated
+                // yellow-brown, which was washing the whole scene out).
+                this.ctx.fillStyle = '#332f2a';
+                this.ctx.strokeStyle = '#4a453d';
+                this.ctx.lineWidth = 1;
+
+                const startI = Math.max(0, Math.floor((this.player.x - 400) / tileSize));
+                const endI = Math.min(this.cave[0].length, Math.ceil((this.player.x + 400) / tileSize));
+                const startJ = Math.max(0, Math.floor((this.player.y - 400) / tileSize));
+                const endJ = Math.min(this.cave.length, Math.ceil((this.player.y + 400) / tileSize));
+
+                for (let i = startI; i < endI; i++) {
+                    for (let j = startJ; j < endJ; j++) {
+                        if (this.cave[j][i] === 1) {
+                            this.ctx.fillRect(i * tileSize, j * tileSize, tileSize, tileSize);
+                            this.ctx.strokeRect(i * tileSize, j * tileSize, tileSize, tileSize);
+                        }
+                    }
+                }
+            }
+
+            renderRock(rock) {
+                const ctx = this.ctx;
+                ctx.save();
+                ctx.translate(rock.x, rock.y);
+
+                // BUGFIX/POLISH: rocks used to be plain flat-colored circles.
+                // Give ordinary rocks an irregular chunk silhouette (stone/coal/
+                // iron) and give crystals a faceted, glowing gem shape instead.
+                const palette = {
+                    stone: { base: '#8c8478', dark: '#5a5348', light: '#aca594' },
+                    coal: { base: '#2c2b2e', dark: '#131214', light: '#48474b', fleck: '#e0e0e0' },
+                    iron: { base: '#a08f78', dark: '#6c5f4c', light: '#cabb9d', fleck: '#e0893f' },
+                    crystal: { base: '#28d9e6', dark: '#0e8f99', light: '#c4fbff', glow: 'rgba(40, 220, 235, 0.55)' },
+                    rareCrystal: { base: '#ef4de0', dark: '#a1189a', light: '#ffd9f8', glow: 'rgba(240, 90, 225, 0.6)' }
+                };
+                const c = palette[rock.type] || palette.stone;
+                const isGem = rock.type === 'crystal' || rock.type === 'rareCrystal';
+
+                if (isGem) {
+                    const glowR = rock.type === 'rareCrystal' ? 22 : 17;
+                    const glowGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, glowR);
+                    glowGrad.addColorStop(0, c.glow);
+                    glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+                    ctx.fillStyle = glowGrad;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, glowR, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    const s = rock.type === 'rareCrystal' ? 11 : 8.5;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -s * 1.4);
+                    ctx.lineTo(s, -s * 0.1);
+                    ctx.lineTo(s * 0.55, s * 1.3);
+                    ctx.lineTo(-s * 0.55, s * 1.3);
+                    ctx.lineTo(-s, -s * 0.1);
+                    ctx.closePath();
+                    ctx.fillStyle = c.base;
+                    ctx.fill();
+                    ctx.strokeStyle = c.light;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    // facet lines for a cut-gem look
+                    ctx.strokeStyle = c.dark;
+                    ctx.globalAlpha = 0.6;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -s * 1.4);
+                    ctx.lineTo(0, s * 1.3);
+                    ctx.moveTo(-s, -s * 0.1);
+                    ctx.lineTo(s, -s * 0.1);
+                    ctx.stroke();
+                    ctx.globalAlpha = 1;
+
+                    // twinkle
+                    const twinkle = 0.5 + Math.sin(Date.now() / 220 + rock.x) * 0.4;
+                    ctx.fillStyle = c.light;
+                    ctx.globalAlpha = Math.max(0, twinkle);
+                    ctx.beginPath();
+                    ctx.arc(-s * 0.3, -s * 0.6, 1.6, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.globalAlpha = 1;
+                } else {
+                    // Irregular rock chunk from the precomputed polygon
+                    const shape = rock.shape || this.generateRockShape();
+                    ctx.beginPath();
+                    shape.forEach((pt, idx) => {
+                        const px = Math.cos(pt.angle) * pt.r;
+                        const py = Math.sin(pt.angle) * pt.r;
+                        if (idx === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+                    });
+                    ctx.closePath();
+                    ctx.fillStyle = c.base;
+                    ctx.fill();
+                    ctx.strokeStyle = c.dark;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    // soft shading so it doesn't look flat
+                    ctx.save();
+                    ctx.clip();
+                    ctx.fillStyle = c.dark;
+                    ctx.globalAlpha = 0.25;
+                    ctx.beginPath();
+                    ctx.arc(3, 3, 11, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = c.light;
+                    ctx.globalAlpha = 0.2;
+                    ctx.beginPath();
+                    ctx.arc(-3, -3, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.restore();
+                    ctx.globalAlpha = 1;
+
+                    if (c.fleck) {
+                        ctx.fillStyle = c.fleck;
+                        ctx.globalAlpha = 0.85;
+                        ctx.beginPath(); ctx.arc(-2, -3, 1, 0, Math.PI * 2); ctx.fill();
+                        ctx.beginPath(); ctx.arc(3, 2, 0.8, 0, Math.PI * 2); ctx.fill();
+                        ctx.globalAlpha = 1;
+                    }
+                }
+
+                // Health bar
+                if (rock.health < rock.maxHealth) {
+                    this.ctx.fillStyle = '#ff0000';
+                    this.ctx.fillRect(-8, -14, 16 * (rock.health / rock.maxHealth), 3);
+                }
+
+                this.ctx.restore();
+            }
+
+            renderExit() {
+                // CHANGE: redesigned as a checkered finish-line banner (the exit
+                // now sits on the map's right border) instead of a plain door.
+                this.ctx.save();
+                this.ctx.translate(this.exitPos.x, this.exitPos.y);
+
+                // Glow so it reads clearly at the edge of the torchlight
+                const glow = this.ctx.createRadialGradient(0, 0, 0, 0, 0, 32);
+                glow.addColorStop(0, 'rgba(255, 200, 0, 0.35)');
+                glow.addColorStop(1, 'rgba(255, 200, 0, 0)');
+                this.ctx.fillStyle = glow;
+                this.ctx.beginPath();
+                this.ctx.arc(0, 0, 32, 0, Math.PI * 2);
+                this.ctx.fill();
+
+                // Checkered finish-line flag pattern
+                const w = 26, h = 58, rows = 6, cols = 3;
+                const cw = w / cols, ch = h / rows;
+                for (let r = 0; r < rows; r++) {
+                    for (let c = 0; c < cols; c++) {
+                        this.ctx.fillStyle = (r + c) % 2 === 0 ? '#f5f5f5' : '#141414';
+                        this.ctx.fillRect(-w / 2 + c * cw, -h / 2 + r * ch, cw, ch);
+                    }
+                }
+                this.ctx.strokeStyle = '#ffaa00';
+                this.ctx.lineWidth = 2;
+                this.ctx.strokeRect(-w / 2, -h / 2, w, h);
+
+                this.ctx.fillStyle = '#ffaa00';
+                this.ctx.font = 'bold 9px Arial';
+                this.ctx.textAlign = 'center';
+                this.ctx.fillText('FINISH', 0, -h / 2 - 6);
+
+                this.ctx.restore();
+            }
+
+            renderEnemy(enemy) {
+                this.ctx.save();
+                this.ctx.translate(enemy.x, enemy.y);
+
+                const colors = { bat: '#555', shadow: '#222', crawler: '#444' };
+                this.ctx.fillStyle = colors[enemy.type] || '#555';
+
+                if (enemy.type === 'bat') {
+                    this.ctx.beginPath();
+                    this.ctx.arc(0, 0, 8, 0, Math.PI * 2);
+                    this.ctx.fill();
+                    this.ctx.fillStyle = '#888';
+                    this.ctx.fillRect(-10, -3, 6, 6);
+                    this.ctx.fillRect(4, -3, 6, 6);
+                } else if (enemy.type === 'shadow') {
+                    // POLISH: was a plain filled square. Wobbly blob silhouette
+                    // with two glowing eyes reads much less "boxy".
+                    const t = Date.now() / 300 + enemy.x;
+                    this.ctx.beginPath();
+                    const lobes = 8;
+                    for (let i = 0; i <= lobes; i++) {
+                        const a = (i / lobes) * Math.PI * 2;
+                        const r = 9 + Math.sin(a * 3 + t) * 2.5;
+                        const px = Math.cos(a) * r;
+                        const py = Math.sin(a) * r;
+                        if (i === 0) this.ctx.moveTo(px, py); else this.ctx.lineTo(px, py);
+                    }
+                    this.ctx.closePath();
+                    this.ctx.fill();
+                    this.ctx.fillStyle = '#ff3333';
+                    this.ctx.beginPath();
+                    this.ctx.arc(-3, -1, 1.4, 0, Math.PI * 2);
+                    this.ctx.arc(3, -1, 1.4, 0, Math.PI * 2);
+                    this.ctx.fill();
+                } else {
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(-10, -10);
+                    this.ctx.lineTo(10, -10);
+                    this.ctx.lineTo(15, 0);
+                    this.ctx.lineTo(10, 10);
+                    this.ctx.lineTo(-10, 10);
+                    this.ctx.lineTo(-15, 0);
+                    this.ctx.fill();
+                }
+
+                this.ctx.restore();
+            }
+
+            renderPlayer() {
+                const ctx = this.ctx;
+                const p = this.player;
+                const hurt = p.invincibilityFrames > 0;
+
+                // POLISH: replaced the rotating orange square with a small
+                // top-down miner - head, torso, swinging arms/legs, and a
+                // helmet lamp - instead of a plain box.
+                const bob = p.isMoving ? Math.sin(p.walkCycle) * 1.5 : 0;
+                const legSwing = p.isMoving ? Math.sin(p.walkCycle) * 4 : 0;
+                const armSwing = p.isMoving ? Math.sin(p.walkCycle + Math.PI) * 3 : 0;
+
+                ctx.save();
+                ctx.translate(p.x, p.y + bob);
+                if (p.facingLeft) ctx.scale(-1, 1);
+
+                const skin = hurt ? '#ff6b6b' : '#e0a878';
+                const suit = hurt ? '#ff4444' : '#d97a2b';
+                const suitDark = hurt ? '#c22' : '#a85c1e';
+
+                // legs
+                ctx.fillStyle = '#3a2a1a';
+                ctx.fillRect(-5, 3 + legSwing * 0.3, 4, 8);
+                ctx.fillRect(1, 3 - legSwing * 0.3, 4, 8);
+
+                // back arm (behind torso)
+                ctx.fillStyle = suitDark;
+                ctx.fillRect(-7, -3 + armSwing * 0.4, 3, 8);
+
+                // torso (rounded)
+                ctx.fillStyle = suit;
+                ctx.beginPath();
+                ctx.moveTo(-6, -6);
+                ctx.lineTo(6, -6);
+                ctx.quadraticCurveTo(8, -6, 8, -2);
+                ctx.lineTo(8, 4);
+                ctx.quadraticCurveTo(8, 6, 6, 6);
+                ctx.lineTo(-6, 6);
+                ctx.quadraticCurveTo(-8, 6, -8, 4);
+                ctx.lineTo(-8, -2);
+                ctx.quadraticCurveTo(-8, -6, -6, -6);
+                ctx.fill();
+
+                // front arm + pickaxe, swings opposite the back arm
+                ctx.save();
+                ctx.translate(7, -1 + armSwing * 0.4);
+                ctx.rotate(p.mining ? Math.sin(Date.now() / 60) * 0.9 : 0.3);
+                ctx.fillStyle = suit;
+                ctx.fillRect(-2, 0, 4, 7);
+                // pickaxe
+                ctx.strokeStyle = '#8a8a8a';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(0, 0);
+                ctx.lineTo(6, -9);
+                ctx.stroke();
+                ctx.fillStyle = '#777';
+                ctx.beginPath();
+                ctx.moveTo(6, -9);
+                ctx.lineTo(11, -5);
+                ctx.lineTo(9, -12);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+
+                // head
+                ctx.fillStyle = skin;
+                ctx.beginPath();
+                ctx.arc(0, -9, 5.5, 0, Math.PI * 2);
+                ctx.fill();
+
+                // helmet
+                ctx.fillStyle = '#c99a1f';
+                ctx.beginPath();
+                ctx.arc(0, -10.5, 5.8, Math.PI, 0);
+                ctx.fill();
+                ctx.fillRect(-5.8, -10.5, 11.6, 2);
+
+                // helmet lamp - glows warmer/brighter the more torch energy
+                // remains, and flickers like the main torch when critically low
+                const lampFlicker = this.torch.energy < 15 ? (0.6 + Math.random() * 0.4) : 1;
+                ctx.fillStyle = `rgba(255, 220, 120, ${0.9 * lampFlicker})`;
+                ctx.beginPath();
+                ctx.arc(0, -13, 1.8, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.restore();
+            }
+
+            renderLighting(camX, camY) {
+                // BUGFIX: the previous version drew a near-opaque (0.98 alpha)
+                // black rectangle over the *already-rendered* scene, then added a
+                // warm glow on top with normal (source-over) blending. Because the
+                // dark rectangle never actually reaches full opacity, ~2% of every
+                // rock/wall color bled through uniformly across the whole map -
+                // which is exactly the "everything is a faint grey blob everywhere"
+                // look in the screenshot, and explicitly violates "do NOT simply
+                // make the whole map visible with a dark transparent overlay."
+                //
+                // Fix: build the darkness on a separate offscreen canvas that
+                // starts fully opaque, then use "destination-out" compositing to
+                // genuinely erase (not just dim) a soft-edged circle around the
+                // player. Anything outside that circle stays 100% hidden.
+                const w = this.canvas.width, h = this.canvas.height;
+                if (this.darknessCanvas.width !== w || this.darknessCanvas.height !== h) {
+                    this.darknessCanvas.width = w;
+                    this.darknessCanvas.height = h;
+                }
+                const dctx = this.darknessCtx;
+                const lightX = this.player.x - camX;
+                const lightY = this.player.y - camY;
+
+                // Subtle flicker on the radius itself so the torch feels alive
+                // (stronger flicker when energy is critically low).
+                const flicker = this.torch.energy < 15
+                    ? 0.7 + Math.random() * 0.35
+                    : 0.95 + Math.random() * 0.08;
+                const radius = Math.max(15, this.torch.radius * flicker);
+
+                dctx.globalCompositeOperation = 'source-over';
+                // CHANGE: was pure black (#000). A faded, dark yellowish-brown
+                // reads as "cave dark" without going to flat black, per request -
+                // it's still fully opaque so nothing outside the torch is
+                // actually visible, just tinted instead of jet black.
+                dctx.fillStyle = '#241a10';
+                dctx.fillRect(0, 0, w, h);
+
+                dctx.globalCompositeOperation = 'destination-out';
+                const holeGradient = dctx.createRadialGradient(lightX, lightY, 0, lightX, lightY, radius);
+                holeGradient.addColorStop(0, 'rgba(255,255,255,1)');
+                holeGradient.addColorStop(0.7, 'rgba(255,255,255,0.9)');
+                holeGradient.addColorStop(1, 'rgba(255,255,255,0)');
+                dctx.fillStyle = holeGradient;
+                dctx.beginPath();
+                dctx.arc(lightX, lightY, radius, 0, Math.PI * 2);
+                dctx.fill();
+                dctx.globalCompositeOperation = 'source-over';
+
+                this.ctx.drawImage(this.darknessCanvas, 0, 0);
+
+                // Warm torch tint - clipped to the lit circle so it can never leak
+                // color into the dark area outside the torch. Toned down from
+                // the previous version, which stacked with the wall color to
+                // look too bright/yellow overall.
+                this.ctx.save();
+                this.ctx.beginPath();
+                this.ctx.arc(lightX, lightY, radius, 0, Math.PI * 2);
+                this.ctx.clip();
+                const tint = this.ctx.createRadialGradient(lightX, lightY, 0, lightX, lightY, radius);
+                tint.addColorStop(0, 'rgba(255, 140, 40, 0.14)');
+                tint.addColorStop(0.7, 'rgba(255, 80, 0, 0.05)');
+                tint.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                this.ctx.fillStyle = tint;
+                this.ctx.fillRect(lightX - radius, lightY - radius, radius * 2, radius * 2);
+                this.ctx.restore();
+            }
+
+            renderMinimap() {
+                const canvas = this.minimapCanvas;
+                const ctx = this.minimapCtx;
+                const tileSize = 20;
+
+                ctx.fillStyle = '#000';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.strokeStyle = '#ff8800';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(0, 0, canvas.width, canvas.height);
+
+                const scale = Math.min(canvas.width, canvas.height) / Math.max(this.cave[0].length * tileSize, this.cave.length * tileSize);
+                const mapScale = scale * tileSize;
+
+                // BUGFIX: draw every tile the player has actually explored (fog of
+                // war persists), instead of only the current light radius which
+                // erased previously-seen areas as soon as the player moved on.
+                for (let j = 0; j < this.explored.length; j++) {
+                    for (let i = 0; i < this.explored[0].length; i++) {
+                        if (this.explored[j][i]) {
+                            ctx.fillStyle = this.cave[j][i] === 1 ? '#555' : 'rgba(150, 150, 150, 0.35)';
+                            ctx.fillRect(i * mapScale, j * mapScale, mapScale + 0.5, mapScale + 0.5);
+                        }
+                    }
+                }
+
+                // Draw player
+                ctx.fillStyle = '#ffaa00';
+                ctx.fillRect(
+                    (this.player.x * scale) - 2,
+                    (this.player.y * scale) - 2,
+                    4,
+                    4
+                );
+
+                // BUGFIX: the exit used to always be visible on the minimap even
+                // before discovery, contradicting "the exit can remain hidden until
+                // the player discovers it". Only draw it once its tile is explored
+                // AND the hidden finish line has actually been mined open.
+                const exitI = Math.floor(this.exitPos.x / tileSize);
+                const exitJ = Math.floor(this.exitPos.y / tileSize);
+                if (this.exitRevealed && this.explored[exitJ] && this.explored[exitJ][exitI]) {
+                    ctx.fillStyle = '#ff6600';
+                    ctx.fillRect(
+                        (this.exitPos.x * scale) - 2,
+                        (this.exitPos.y * scale) - 2,
+                        4,
+                        4
+                    );
+                }
+            }
+
+            // ================================================================
+            // UI MENUS
+            // ================================================================
+
+            showMainMenu() {
+                this.gameState = 'menu';
+                this.hideAllMenus();
+                document.getElementById('mainMenu').classList.remove('hidden');
+                this.updateSoundButton();
+            }
+
+            showLevelCompleteMenu() {
+                const stats = this.levelStats;
+                document.getElementById('levelStats').innerHTML = `
+                    <div class="stats-item">⏱️ Time: ${stats.time}s</div>
+                    <div class="stats-item">⛏️ Materials: ${stats.collected}</div>
+                    <div class="stats-item">🔥 Torch: ${stats.torchRemaining}%</div>
+                    <div class="stats-item" style="color: #ffaa00; margin-top: 10px;">Reward: +${stats.reward} currency</div>
+                `;
+                document.getElementById('levelCompleteMenu').classList.remove('hidden');
+            }
+
+            showUpgradesMenu() {
+                this.gameState = 'menu';
+                this.hideAllMenus();
+
+                const upgradeList = [
+                    {
+                        id: 'torchRadius',
+                        name: '🔆 Larger Light Radius',
+                        desc: 'Increases torch light range',
+                        cost: 100
+                    },
+                    {
+                        id: 'torchDrain',
+                        name: '🔋 Efficient Torch',
+                        desc: 'Torch drains slower',
+                        cost: 150
+                    },
+                    {
+                        id: 'miningSpeed',
+                        name: '⚡ Faster Mining',
+                        desc: 'Mine rocks quicker',
+                        cost: 120
+                    },
+                    {
+                        id: 'playerHealth',
+                        name: '❤️ More Health',
+                        desc: 'Survive longer',
+                        cost: 80
+                    },
+                    {
+                        id: 'playerSpeed',
+                        name: '🏃 Faster Movement',
+                        desc: 'Move quicker through caves',
+                        cost: 90
+                    }
+                ];
+
+                let html = '';
+                for (let upgrade of upgradeList) {
+                    const level = this.upgrades[upgrade.id] || 0;
+                    const cost = upgrade.cost + (level * 50);
+                    const canAfford = this.currency >= cost;
+                    html += `
+                        <div class="upgrade-item">
+                            <div class="upgrade-item-name">${upgrade.name} (${level})</div>
+                            <div class="upgrade-item-desc">${upgrade.desc}</div>
+                            <div class="upgrade-item-cost">Cost: ${cost}</div>
+                            <button onclick="game.buyUpgrade('${upgrade.id}')" 
+                                style="margin-top: 8px; width: 100%; ${!canAfford ? 'opacity: 0.5; cursor: not-allowed;' : ''}">
+                                BUY
+                            </button>
+                        </div>
+                    `;
+                }
+
+                document.getElementById('upgradesContainer').innerHTML = html;
+                document.getElementById('currencyDisplay').textContent = this.currency;
+                document.getElementById('upgradesMenu').classList.remove('hidden');
+            }
+
+            buyUpgrade(upgradeId) {
+                const upgradeCosts = {
+                    torchRadius: 100,
+                    torchDrain: 150,
+                    miningSpeed: 120,
+                    playerHealth: 80,
+                    playerSpeed: 90
+                };
+
+                const baseCost = upgradeCosts[upgradeId];
+                const level = this.upgrades[upgradeId] || 0;
+                const cost = baseCost + (level * 50);
+
+                if (this.currency >= cost) {
+                    this.currency -= cost;
+                    this.upgrades[upgradeId] = (this.upgrades[upgradeId] || 0) + 1;
+                    this.playSound(500, 0.2);
+                    this.saveProgress();
+                    this.showUpgradesMenu(); // Refresh menu
+                }
+            }
+
+            showLevelsMenu() {
+                this.gameState = 'menu';
+                this.hideAllMenus();
+
+                let html = '';
+                for (let i = 1; i <= this.maxLevel; i++) {
+                    html += `<button onclick="game.startLevel(${i})">LEVEL ${i}</button>`;
+                }
+
+                document.getElementById('levelsButtonContainer').innerHTML = html;
+                document.getElementById('levelsMenu').classList.remove('hidden');
+            }
+
+            showSettingsMenu() {
+                this.gameState = 'menu';
+                this.hideAllMenus();
+                document.getElementById('settingsMenu').classList.remove('hidden');
+                this.updateSoundButton();
+            }
+
+            showPauseMenu() {
+                document.getElementById('pauseMenu').classList.remove('hidden');
+            }
+
+            hidePauseMenu() {
+                document.getElementById('pauseMenu').classList.add('hidden');
+            }
+
+            hideAllMenus() {
+                document.getElementById('mainMenu').classList.add('hidden');
+                document.getElementById('pauseMenu').classList.add('hidden');
+                document.getElementById('levelCompleteMenu').classList.add('hidden');
+                document.getElementById('gameOverMenu').classList.add('hidden');
+                document.getElementById('levelsMenu').classList.add('hidden');
+                document.getElementById('upgradesMenu').classList.add('hidden');
+                document.getElementById('settingsMenu').classList.add('hidden');
+            }
+
+            togglePause() {
+                if (this.gameState === 'playing') {
+                    this.gameState = 'paused';
+                    this.showPauseMenu();
+                } else if (this.gameState === 'paused') {
+                    this.gameState = 'playing';
+                    this.hidePauseMenu();
+                }
+            }
+
+            restartLevel() {
+                this.inventory = { stone: 0, coal: 0, iron: 0, crystal: 0, rareCrystal: 0 };
+                this.startLevel(this.currentLevel);
+            }
+
+            nextLevel() {
+                if (this.currentLevel < this.maxLevel) {
+                    this.currentLevel++;
+                    this.inventory = { stone: 0, coal: 0, iron: 0, crystal: 0, rareCrystal: 0 };
+                    this.startLevel(this.currentLevel);
+                } else {
+                    this.showMainMenu();
+                }
+            }
+
+            returnToMenu() {
+                this.showMainMenu();
+            }
+
+            toggleSound() {
+                this.soundEnabled = !this.soundEnabled;
+                localStorage.setItem('soundEnabled', this.soundEnabled);
+                this.updateSoundButton();
+            }
+
+            updateSoundButton() {
+                const btn = document.getElementById('soundToggle');
+                if (btn) {
+                    btn.textContent = this.soundEnabled ? '🔊 SOUND: ON' : '🔇 SOUND: OFF';
+                }
+            }
+
+            resetAllProgress() {
+                if (confirm('Are you sure? This will reset all progress and currency.')) {
+                    this.currency = 0;
+                    this.upgrades = {
+                        torchRadius: 0,
+                        torchDrain: 0,
+                        miningSpeed: 0,
+                        playerHealth: 0,
+                        playerSpeed: 0
+                    };
+                    this.currentLevel = 1;
+                    this.saveProgress();
+                    this.showMainMenu();
+                }
+            }
+
+            // ================================================================
+            // SAVE/LOAD
+            // ================================================================
+
+            saveProgress() {
+                const save = {
+                    currency: this.currency,
+                    upgrades: this.upgrades,
+                    currentLevel: this.currentLevel,
+                    soundEnabled: this.soundEnabled
+                };
+                localStorage.setItem('deepDarkSave', JSON.stringify(save));
+            }
+
+            loadProgress() {
+                const save = localStorage.getItem('deepDarkSave');
+                if (save) {
+                    const data = JSON.parse(save);
+                    this.currency = data.currency || 0;
+                    this.upgrades = data.upgrades || this.upgrades;
+                    this.currentLevel = data.currentLevel || 1;
+                }
+            }
+
+            // ================================================================
+            // MAIN LOOP
+            // ================================================================
+
+            gameLoop() {
+                this.update();
+                this.render();
+                requestAnimationFrame(() => this.gameLoop());
+            }
+
+            start() {
+                // Request landscape orientation on mobile
+                if (screen.orientation && screen.orientation.lock) {
+                    screen.orientation.lock('landscape').catch(err => {
+                        console.log('Orientation lock not available:', err);
+                    });
+                }
+
+                // Handle orientation changes
+                window.addEventListener('orientationchange', () => {
+                    setTimeout(() => {
+                        this.resizeCanvas();
+                    }, 100);
+                });
+
+                this.gameLoop();
+            }
+        }
+
+        // Initialize game
+        const game = new Game();
+        game.start();
+
+        // Prevent scrolling
+        document.addEventListener('wheel', (e) => {
+            if (game.gameState === 'playing') {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    </script>
+</body>
+</html>
